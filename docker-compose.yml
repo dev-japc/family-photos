@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: family-photos-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev-password
+      POSTGRES_DB: family-photos
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: family-photos-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/app
+      - /app/bin
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgres://postgres:dev-password@postgres:5432/family-photos?sslmode=disable
+volumes:
+  postgres_data:
