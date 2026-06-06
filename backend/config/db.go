@@ -30,7 +30,7 @@ func ConnectDatabase() {
 
 	// AutoMigrate se encarga de revisar tus 'structs' de Go y crear o actualizar 
 	// las tablas en PostgreSQL de forma automática si no existen.
-	err = database.AutoMigrate(&models.AllowedNationalIdNumber{}, &models.User{})
+	err = database.AutoMigrate(&models.AllowedNationalIdNumber{}, &models.User{}, &models.Photo{})
 	if err != nil {
 		log.Fatal("Error executing migrations: ", err)
 	}

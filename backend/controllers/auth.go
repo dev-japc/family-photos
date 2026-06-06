@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"errors"
 	"net/http"
 	"time"
@@ -30,32 +31,103 @@ type LoginInput struct {
 	Password 		 string `json:"password" binding:"required"`
 }
 
+// AddToWhitelist
+func AddToWhitelist(c *gin.Context) {
+    type WhitelistInput struct {
+        NationalIDNumber string `json:"national_id_number" binding:"required"`
+        Name             string `json:"name" binding:"required"`
+    }
+
+    var input WhitelistInput
+    if err := c.ShouldBindJSON(&input); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Id number and name are required"})
+        return
+    }
+
+    type AllowedID struct {
+        NationalIDNumber string `gorm:"column:national_id_number"`
+        Name             string `gorm:"column:name"`
+    }
+
+    var existingID AllowedID
+    // Check if ID already exists in whitelist
+    err := config.DB.Table("allowed_national_id_numbers").Where("national_id_number = ?", input.NationalIDNumber).First(&existingID).Error
+    if err == nil {
+        c.JSON(http.StatusConflict, gin.H{"error": "This ID number is already in the whitelist"})
+        return
+    }
+
+    newAllowed := AllowedID{
+        NationalIDNumber: input.NationalIDNumber,
+        Name:             input.Name,
+    }
+    if err := config.DB.Table("allowed_national_id_numbers").Create(&newAllowed).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add ID to whitelist"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "message": fmt.Sprintf("ID '%s' ('%s') added successfully to whitelist", input.NationalIDNumber, input.Name),
+    })
+}
+
+// DeleteFromWhitelist deletes a national ID number from the whitelist
+func DeleteFromWhitelist(c *gin.Context) {
+	nationalID := c.Param("national_id_number")
+
+	var allowed models.AllowedNationalIdNumber
+	// Check if ID exists in whitelist
+	if err := config.DB.Where("national_id_number = ?", nationalID).First(&allowed).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "This ID number is not in the whitelist"})
+		return
+	}
+
+	// Delete the ID from whitelist
+	if err := config.DB.Delete(&allowed).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete ID from whitelist"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("ID '%s' ('%s') deleted successfully from whitelist", allowed.NationalIdNumber, allowed.Name),
+	})
+}
+
+// GetWhitelist retrieves all allowed national ID numbers from the whitelist
+func GetWhitelist(c *gin.Context) {
+	var whitelist []models.AllowedNationalIdNumber
+
+	if err := config.DB.Find(&whitelist).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve whitelist"})
+		return
+	}
+
+	c.JSON(http.StatusOK, whitelist)
+}
+
 func Register(c *gin.Context) {
 	var input RegisterInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos o incompletos"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid data"})
 		return
 	}
 
-	// 1. Validar lista blanca (Si da error, es porque NO existe en la lista blanca)
 	var allowed models.AllowedNationalIdNumber
 	if err := config.DB.Where("national_id_number = ?", input.NationalIdNumber).First(&allowed).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "This ID is not allowed to register. Family members only"})
 		return
 	}
-
-	// 2. CORREGIDO: Validar si ya existe el usuario
 	var existingUser models.User
 	err := config.DB.Where("national_id_number = ?", input.NationalIdNumber).First(&existingUser).Error
 	
-	// Si NO da error (err == nil), significa que SÍ encontró un usuario con ese ID
+	// If err == nil, it means a user with this ID was found
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "User already exists!"})
 		return
 	}
 	
-	// Si da un error diferente a "no encontrado", es un problema real del servidor
+	// If it returns an error different from "not found", it's a real server problem
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error interno al verificar el usuario"})
 		return
@@ -68,21 +140,21 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// 4. Crear el usuario
+	// 4. Create users
 	newUser := models.User{
 		FullName:         input.FullName,
 		Email:            input.Email,
 		Password:         string(hashedPassword),
 		NationalIdNumber: input.NationalIdNumber,
-		Role:             "family_member",
+		Role:             "family_member",//default role for new users
 	}
 
 	if err := config.DB.Create(&newUser).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo crear el usuario en el sistema"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create the user in the system"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Usuario registrado con éxito. ¡Bienvenido a la familia!"})
+	c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully. Welcome to the family"})
 }
 
 func Login(c *gin.Context) {
@@ -128,5 +200,98 @@ func Login(c *gin.Context) {
 		"token": tokenString,
 		"full_name": user.FullName,
 		"role": user.Role,		
+	})
+}
+
+// UpdateUser 
+func UpdateUser(c *gin.Context) {
+	userID, _ := c.Get("userID")
+
+	var user models.User
+	if err := config.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// temporal structure to receive JSON with changes
+	type UpdateInput struct {
+		FullName string `json:"full_name"`
+		Password string `json:"password"`
+	}
+
+	var input UpdateInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid data"})
+		return
+	}
+
+	// update name if it comes in the request
+	if input.FullName != "" {
+		user.FullName = input.FullName
+	}
+
+	// if the password changes, re-encrypt it with Bcrypt
+	if input.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error processing the new password"})
+			return
+		}
+		user.Password = string(hashedPassword)
+	}
+
+	if err := config.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not update user data"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
+}
+
+// DeleteUser deletes the account of the authenticated user
+func DeleteUser(c *gin.Context) {
+	userID, _ := c.Get("userID")
+
+	var user models.User
+	if err := config.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	if err := config.DB.Delete(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not delete user account"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Account deleted successfully. Sad to see you go."})
+}
+
+// AdminDeleteUser allow admin delete any user from the system
+func AdminDeleteUser(c *gin.Context) {
+	// 1. Get user ID to delete from URL
+	targetUserID := c.Param("id")
+
+	// Prevent admin from deleting itself
+	adminID, _ := c.Get("userID")
+	if fmt.Sprintf("%v", adminID) == targetUserID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "You can't delete your own account from here"})
+		return
+	}
+
+	var user models.User
+	// 2. Check if target user exists
+	if err := config.DB.First(&user, targetUserID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "The user you are trying to delete does not exist"})
+		return
+	}
+
+	// 3. Delete user from database
+	if err := config.DB.Delete(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not delete the user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("User '%s' (ID: %s) deleted successfully by the administrator", user.FullName, targetUserID),
 	})
 }
