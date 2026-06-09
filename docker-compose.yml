@@ -24,5 +24,16 @@ services:
       - postgres
     environment:
       DATABASE_URL: postgres://postgres:dev-password@postgres:5432/family-photos?sslmode=disable
+
+  frontend:
+    build: ./frontend
+    container_name: family_photos_frontend
+    ports:
+      - "4321:4321"
+    env_file:
+      - ./frontend/.env
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
