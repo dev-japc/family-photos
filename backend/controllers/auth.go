@@ -203,6 +203,11 @@ func Login(c *gin.Context) {
 	})
 }
 
+// Logout
+func Logout(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Logout successful. Please discard the token on client side."})
+}
+
 // UpdateUser 
 func UpdateUser(c *gin.Context) {
 	userID, _ := c.Get("userID")

@@ -1,16 +1,18 @@
 {
-  "name": "family-photos-frontend",
+  "name": "frontend",
   "type": "module",
-  "version": "1.0.0",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "astro dev",
-    "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/node": "^8.3.3",
-    "astro": "^4.16.7"
+    "@astrojs/node": "^10.1.4",
+    "astro": "^6.4.5"
   }
 }

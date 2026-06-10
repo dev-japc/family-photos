@@ -1,0 +1,8 @@
+---
+// src/pages/logout.astro
+Astro.cookies.set('auth_token', '', {
+    path: '/',
+    maxAge: 0,
+})
+
+return Astro.redirect('/login')

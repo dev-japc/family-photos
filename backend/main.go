@@ -1,11 +1,13 @@
 package main
 
 import (
+	"time"
 	"backend/config"
 	"backend/controllers"
 	"backend/middleware"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-contrib/cors"
 )
 
 func main() {
@@ -14,6 +16,15 @@ func main() {
 	
 	// create the router
 	r := gin.Default()
+
+	// --- CONFIGURACIÓN DE CORS ---
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:4321"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	// Enable static file serving
 	// This allows accessing the 'uploads' folder via HTTP
@@ -41,6 +52,7 @@ func main() {
 	{
 		authRoutes.POST("/register", controllers.Register)
 		authRoutes.POST("/login", controllers.Login)
+		authRoutes.POST("/logout", controllers.Logout)
 	}
 
 	//grouping photo routes

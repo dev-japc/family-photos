@@ -26,12 +26,21 @@ services:
       DATABASE_URL: postgres://postgres:dev-password@postgres:5432/family-photos?sslmode=disable
 
   frontend:
-    build: ./frontend
-    container_name: family_photos_frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: family-photos-frontend
     ports:
       - "4321:4321"
+    # Especificamos la ruta exacta desde la raíz donde se ejecuta el docker-compose
     env_file:
       - ./frontend/.env
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
 
