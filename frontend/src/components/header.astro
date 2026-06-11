@@ -1,13 +1,44 @@
 ---
 // src/components/header.astro
+// @ts-ignore
+import { jwtDecode } from 'jwt-decode'
 
+const token = Astro.cookies.get('auth_token')?.value
+
+// Decoding the token to get user info (if needed in the future)
+let isAdmin = false
+try {
+  const decoded = jwtDecode(token)
+
+  isAdmin = decoded?.is_admin === true ||decoded?.role === 'admin'
+} catch (error) {
+  return Astro.redirect('/logout')
+}
+
+// if there's no token, redirect to login page
+if (!token) {
+  return Astro.redirect('/login');
+}
 ---
-<header class="app-header bg-slate-900 text-white text-center py-4 flex items-center justify-between px-6">
-    <div class="logo">
-        <span class="serif">Album</span> <span class="sans">Familiar</span>
+<header class="">
+    <nav class="w-full bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm">
+    <div class="flex items-center gap-2">
+      <span class="text-xl">📸</span>
+      <span class="text-sm font-bold text-slate-800 tracking-tight">Álbum Familiar</span>
     </div>
-    <nav class="nav-links">
-        <a href="#galeria" class="active">Galería</a>
-        <a href="#subir">Subir Foto</a>
-    </nav>
+    
+    <div class="flex items-center gap-4">
+      {isAdmin && (
+        <a href="/admin" class="text-sm font-medium bg-green-500 p-2 rounded-md text-gray-50 hover:text-blue-600 transition-colors">
+          Admin Panel
+        </a>
+      )}
+      <a 
+        href="/logout" 
+        class="text-sm font-semibold text-red-600 hover:bg-red-50 px-4 py-2 rounded-xl transition-all border border-transparent hover:border-red-200"
+      >
+        Cerrar Sesión
+      </a>
+    </div>
+  </nav>
 </header>

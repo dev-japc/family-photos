@@ -3,11 +3,65 @@
 import BaseLayout from '@layouts/BaseLayout.astro'
 import Header from '@components/header.astro'
 import Footer from '@components/footer.astro'
+// @ts-ignore
+import { jwtDecode } from 'jwt-decode'
+
+const token = Astro.cookies.get('auth_token')?.value
+
+// Decoding the token to get user info (if needed in the future)
+let isAdmin = false
+try {
+  const decoded = jwtDecode(token)
+
+  isAdmin = decoded?.is_admin === true ||decoded?.role === 'admin'
+} catch (error) {
+  return Astro.redirect('/logout')
+}
+
+// if there's no token, redirect to login page
+if (!token) {
+  return Astro.redirect('/login');
+}
+
+const photos = []
 ---
 
 <BaseLayout title="Family Photos - Álbum Familiar Digital">
   <Header />
   <h1 class="text-2xl text-center pt-3 font-bold">Bienvenido al Álbum de Fotos</h1>
+  <div class="max-w-7xl w-full mx-auto px-4 py-8 grow">
+    
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div>
+        <h2 class="text-2xl font-bold text-slate-800">Nuestros Momentos</h2>
+        <p class="text-slate-500 text-sm mt-1">Un espacio privado para compartir recuerdos en familia.</p>
+      </div>
+      
+      {isAdmin && (
+        <button class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/10 flex items-center gap-2 text-sm">
+          <span>+</span> Subir Nueva Foto
+        </button>
+      )}
+    </div>
+
+    {photos.length === 0 && (
+      <div class="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-12 text-center max-w-xl mx-auto mt-12 shadow-sm">
+        <span class="text-5xl block mb-4">🖼️</span>
+        <h3 class="text-lg font-bold text-slate-800 mb-1">El álbum está vacío</h3>
+        <p class="text-slate-500 text-sm mb-6">Comparte fotos con Jorge para que las cargue al album.</p>
+        {/* <button class="inline-flex items-center gap-2 bg-slate-300 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-xl transition-all text-sm">
+          Subir mi primera foto
+        </button> */}
+      </div>
+    )}
+
+    {photos.length > 0 && (
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {/* Aquí mapearemos las fotos reales con un photos.map() */}
+      </div>
+    )}
+
+  </div>
   <Footer />
 </BaseLayout>
 
