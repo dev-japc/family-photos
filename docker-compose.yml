@@ -19,6 +19,7 @@ services:
       - "8080:8080"
     volumes:
       - ./backend:/app
+      - photo-uploads:/app/uploads
       - /app/bin
     depends_on:
       - postgres
@@ -46,3 +47,4 @@ services:
 
 volumes:
   postgres_data:
+  photo-uploads:

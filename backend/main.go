@@ -56,15 +56,21 @@ func main() {
 	}
 
 	//grouping photo routes
-	photoRoutes := r.Group("/api/photos")
-	photoRoutes.Use(middleware.AuthMiddleware())
-	{
-		photoRoutes.GET("", controllers.GetPhotos)
+    photoRoutes := r.Group("/api/photos")
+    photoRoutes.Use(middleware.AuthMiddleware()) 
+    {
+        photoRoutes.GET("", controllers.GetPhotos)
 
-		photoRoutes.POST("/upload", middleware.AdminMiddleware(), controllers.UploadPhoto)
-		photoRoutes.PUT("/:id", middleware.AdminMiddleware(), controllers.UpdatePhoto)
-		photoRoutes.DELETE("/:id", middleware.AdminMiddleware(), controllers.DeletePhoto)
-	}
+        // SUBGRUPO EXCLUSIVO PARA ADMINISTRADORES 🛡️
+        // Hereda AuthMiddleware de arriba y le sumamos el AdminMiddleware
+        adminPhotoRoutes := photoRoutes.Group("")
+        adminPhotoRoutes.Use(middleware.AdminMiddleware())
+        {
+            adminPhotoRoutes.POST("/upload", controllers.UploadPhoto)
+            adminPhotoRoutes.PUT("/:id", controllers.UpdatePhoto)
+            adminPhotoRoutes.DELETE("/:id", controllers.DeletePhoto)
+        }
+    }
 
 	// user routes
 	userRoutes := r.Group("/api/user")

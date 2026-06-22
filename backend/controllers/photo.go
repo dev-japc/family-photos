@@ -3,9 +3,10 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"path/filepath"
-	"time"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"backend/config"
 	"backend/models"
@@ -14,6 +15,9 @@ import (
 )
 
 func UploadPhoto(c *gin.Context) {
+	const MaxUploadSize = 5 * 1024 * 1024 
+    c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxUploadSize)
+
 	title := c.PostForm("title")
 	description := c.PostForm("description")
 
@@ -28,8 +32,14 @@ func UploadPhoto(c *gin.Context) {
 		return
 	}
 
+	extension := strings.ToLower(filepath.Ext(file.Filename))
+    if extension != ".jpg" && extension != ".jpeg" && extension != ".png" && extension != ".webp" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid format. Only JPG, JPEG, PNG, and WEBP are allowed"})
+        return
+    }
+
 	// generate unique filename in milliseconds
-	extension := filepath.Ext(file.Filename)
+	// extension := filepath.Ext(file.Filename)
 	uniqueFilename := fmt.Sprintf("%d%s", time.Now().UnixNano(), extension)
 
 	// Define the path where the file will be saved physically on the server
