@@ -43,8 +43,8 @@ const publicBackendUrl = import.meta.env.PUBLIC_BACKEND_URL;
       <p class="text-slate-500 text-center text-sm mt-1">Sólo las personas cuyas cédulas estén aquí registradas podrán crearse una cuenta en el sistema y ver las fotos.</p>
     </div>
 
-    <div class="grid grid-cols-1 w-full mx-auto">
-      <div class="bg-white  w-full mx-auto p-3 rounded-2xl shadow-sm border border-slate-200 h-fit mb-6">
+    <div class="grid grid-cols-1 w-full mx-auto gap-6">
+      <div class="bg-white  w-full mx-auto p-3 rounded-2xl shadow-sm border border-slate-200 h-fit">
         <h3 class="font-bold text-center text-slate-800 mb-4">Autorizar Familiar</h3>
         <form id="whitelist-form" class="space-y-4">
             <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Número de Cédula</label>
@@ -58,7 +58,7 @@ const publicBackendUrl = import.meta.env.PUBLIC_BACKEND_URL;
         </form>
       </div>
 
-      <div class="md:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="md:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mr-6">
         <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
           <h3 class="font-bold text-slate-800 text-sm text-center">Cédulas con Acceso Permitido</h3>
         </div>
@@ -71,7 +71,40 @@ const publicBackendUrl = import.meta.env.PUBLIC_BACKEND_URL;
           <li class="px-6 py-4 text-center text-sm text-slate-400">Cargando lista blanca...</li>
         </ul>
       </div>
+      <div class="space-y-6 h-fit">
+  
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
     </div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <h3 class="font-bold text-slate-800 mb-4">Subir Recuerdo Familiar</h3>
+      
+      <form id="upload-photo-form" class="space-y-4" enctype="multipart/form-data">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Título del Momento</label>
+          <input type="text" name="title" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm text-slate-800" placeholder="Ej. Cumpleaños del Abuelo" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Descripción (Opcional)</label>
+          <textarea name="description" rows="2" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm text-slate-800 resize-none" placeholder="¿Qué pasó este día?"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Seleccionar Imagen</label>
+          <input type="file" name="image" id="photo-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" required class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
+          <p class="text-[10px] text-slate-400 mt-1">Máximo 5MB (JPG, PNG, WEBP)</p>
+        </div>
+
+        <button type="submit" id="upload-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-xl text-sm transition-colors shadow-md shadow-blue-600/10 flex items-center justify-center gap-2">
+          <span>📤</span> Subir al Álbum
+        </button>
+      </form>
+    </div>
+
+      </div>
+  </div>
+    
   </div>
 
   <script define:vars={{ publicBackendUrl, token }} is:inline>
@@ -171,6 +204,49 @@ const publicBackendUrl = import.meta.env.PUBLIC_BACKEND_URL;
         alert(error.message);
       }
     }
+
+  const uploadForm = document.getElementById('upload-photo-form');
+  const uploadBtn = document.getElementById('upload-btn');
+
+  uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    // Cambiamos el estado del botón para que el usuario sepa que está cargando
+    const originalBtnText = uploadBtn.innerHTML;
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = `<span>⏳</span> Subiendo archivo...`;
+
+    // Recogemos los campos binarios del formulario automáticamente
+    const formData = new FormData(uploadForm);
+
+    try {
+      const response = await fetch(`${publicBackendUrl}/api/photos/upload`, {
+        method: 'POST',
+        headers: {
+          // NOTA: Cuando usas FormData, NO debes poner 'Content-Type': 'multipart/form-data'.
+          // El navegador necesita configurar el "boundary" de seguridad de forma automática.
+          'Authorization': `Bearer ${token}` 
+        },
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error desconocido al subir la imagen');
+      }
+
+      alert('¡Momento familiar guardado con éxito! 🎉');
+      uploadForm.reset();
+
+    } catch (error) {
+      alert(`⚠️ Error: ${error.message}`);
+    } finally {
+      // Restauramos el botón a su estado original
+      uploadBtn.disabled = false;
+      uploadBtn.innerHTML = originalBtnText;
+    }
+  });
 
     // Initial fetch of the whitelist when the page loads
     fetchWhitelist();
