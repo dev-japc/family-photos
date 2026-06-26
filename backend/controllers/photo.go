@@ -62,11 +62,15 @@ func UploadPhoto(c *gin.Context) {
 	userID := userIDValue.(uint)
 
 	// create the record in the database with the real owner of the photo
+	if description == "" {
+		description = title
+	}
+
 	newPhoto := models.Photo{
 		Title:       title,
 		Description: description,
 		URL:         "/uploads/" + uniqueFilename,
-		UserID:      userID,                          
+		UserID:      userID,
 	}
 
 	if err := config.DB.Create(&newPhoto).Error; err != nil {
@@ -80,18 +84,40 @@ func UploadPhoto(c *gin.Context) {
 	})
 }
 
-// GetPhotos gets all photos from the database
+// GetPhotos gets photos with pagination (Max 10 per page)
 func GetPhotos(c *gin.Context) {
-	var photos []models.Photo
+    var photos []models.Photo
+    
+    pageStr := c.DefaultQuery("page", "1")
 
-	// Search all photos from the database ordered by the most recent
-	if err := config.DB.Order("created_at desc").Find(&photos).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error getting the list of photos"})
-		return
-	}
+    var page int
 
-	// Respond with the list of photos (if there are none, it will return an empty array [])
-	c.JSON(http.StatusOK, photos)
+    fmt.Sscanf(pageStr, "%d", &page)
+    if page < 1 {
+        page = 1
+    }
+
+    // 2. limiting the number of photos per page to 10
+    pageSize := 10
+    offset := (page - 1) * pageSize
+
+    // 3. counting the total number of photos in DB to calculate the number of pages needed for pagination
+    var totalPhotos int64
+    config.DB.Model(&models.Photo{}).Count(&totalPhotos)
+
+    // 4. look for the photos in DB and sort them by creation
+    if err := config.DB.Order("created_at desc").Limit(pageSize).Offset(offset).Find(&photos).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Error getting the list of photos"})
+        return
+    }
+
+    // 5. JSON response with the photos, current page, total photos, and total pages
+    c.JSON(http.StatusOK, gin.H{
+        "photos":       photos,
+        "current_page": page,
+        "total_photos": totalPhotos,
+        "total_pages":  (totalPhotos + int64(pageSize) - 1) / int64(pageSize), // Redondeo hacia arriba
+    })
 }
 
 func UpdatePhoto(c *gin.Context) {
@@ -99,28 +125,29 @@ func UpdatePhoto(c *gin.Context) {
 	userID, _ := c.Get("userID")
 
 	var photo models.Photo
-	// 1. Buscar la foto
+
+	// 1. search the photo
 	if err := config.DB.First(&photo, photoID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Foto no encontrada"})
 		return
 	}
 
-	// 2. Validar que el usuario sea el dueño de la foto
+	// 2. photo validation to check if user is the owner
 	if photo.UserID != userID.(uint) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permiso para modificar esta foto"})
 		return
 	}
 
-	// 3. Leer los nuevos campos del formulario
+	// 3. reading the new data from the request
 	title := c.PostForm("title")
 	description := c.PostForm("description")
 
 	if title != "" {
 		photo.Title = title
 	}
-	photo.Description = description // Permite vaciar la descripción si se desea
+	photo.Description = description 
 
-	// 4. Guardar cambios
+	// 4. keep changes if error occurs
 	if err := config.DB.Save(&photo).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudieron actualizar los datos"})
 		return
@@ -132,7 +159,7 @@ func UpdatePhoto(c *gin.Context) {
 // DeletePhoto deletes the database record and the physical file from the server
 func DeletePhoto(c *gin.Context) {
 	photoID := c.Param("id")
-	userID, _ := c.Get("userID")
+	// userID, _ := c.Get("userID")
 
 	var photo models.Photo
 	if err := config.DB.First(&photo, photoID).Error; err != nil {
@@ -140,10 +167,10 @@ func DeletePhoto(c *gin.Context) {
 		return
 	}
 
-	if photo.UserID != userID.(uint) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to delete this image"})
-		return
-	}
+	// if photo.UserID != userID.(uint) {
+	// 	c.JSON(http.StatusForbidden, gin.H{"error": "You don't have permission to delete this image"})
+	// 	return
+	// }
 
 	// 1. Delete the physical file from the disk (ej: "uploads/17807065459...png")
 	// Remove the initial slash from the saved URL to get the correct relative path

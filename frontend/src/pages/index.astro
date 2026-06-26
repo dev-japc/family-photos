@@ -3,6 +3,7 @@
 import BaseLayout from '@layouts/BaseLayout.astro'
 import Header from '@components/header.astro'
 import Footer from '@components/footer.astro'
+import { Image } from 'astro:assets'
 // @ts-ignore
 import { jwtDecode } from 'jwt-decode'
 
@@ -23,32 +24,26 @@ if (!token) {
   return Astro.redirect('/login');
 }
 
-// const photos = []
+// Capturar la página actual desde la URL del navegador (ej: http://localhost:4321/?page=2)
+const url = new URL(Astro.request.url);
+const currentPage = url.searchParams.get("page") || "1";
 
-// 📡 CONSUMIR LAS FOTOS DESDE EL SERVIDOR DE ASTRO
-// Usamos la URL interna de Docker o la pública para traer el array de fotos
-let photos = [];
-
-// 🐳 URL INTERNA DE DOCKER PARA EL SERVIDOR
-// Reemplaza "backend" por el nombre exacto que le pusiste a tu servicio de Go en el docker-compose.yml
 const internalBackendUrl = "http://backend:8080"; 
-
-// 🌐 URL PÚBLICA PARA EL NAVEGADOR (Esta sí usa localhost)
 const publicBackendUrl = import.meta.env.PUBLIC_BACKEND_URL || "http://localhost:8080";
 
+let photoData = { photos: [], current_page: 1, total_pages: 1 };
+
 try {
-  // El fetch del servidor viaja de manera interna por la red de Docker
-  const response = await fetch(`${internalBackendUrl}/api/photos`, {
+  // Le pasamos el parámetro ?page=X internamente a Go
+  const response = await fetch(`${internalBackendUrl}/api/photos?page=${currentPage}`, {
     method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
+    headers: { 'Authorization': `Bearer ${token}` }
   });
   if (response.ok) {
-    photos = await response.json();
+    photoData = await response.json();
   }
 } catch (error) {
-  console.error("Error cargando fotos en el servidor de Astro:", error);
+  console.error("Error cargando fotos paginadas:", error);
 }
 ---
 
@@ -65,53 +60,150 @@ try {
       
       {isAdmin && (
         <button class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/10 flex items-center gap-2 text-sm">
-          <span>+</span> Subir Nueva Foto
-          <a href="/admin" class="absolute inset-0"></a>
+          <a aria-label="upload-new-photo" href="/admin" >
+            Subir Nueva Foto
+          </a>
         </button>
       )}
     </div>
 
-    {photos.length === 0 && (
+    {photoData.photos.length === 0 && (
       <div class="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-12 text-center max-w-xl mx-auto mt-12 shadow-sm">
         <span class="text-5xl block mb-4">🖼️</span>
         <h3 class="text-lg font-bold text-slate-800 mb-1">El álbum está vacío</h3>
         <p class="text-slate-500 text-sm mb-6">Comparte fotos con Jorge para que las cargue al album.</p>
-        {/* <button class="inline-flex items-center gap-2 bg-slate-300 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-xl transition-all text-sm">
-          Subir mi primera foto
-        </button> */}
+        {isAdmin && (
+          <a aria-label="upload-new-photo" href="/admin" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/10 text-sm">
+            Subir Nueva Foto
+          </a>
+        )}
       </div>
     )}
 
-    {photos.length > 0 && (
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {photos.map((photo: any) => (
-          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all group">
-            {/* Contenedor de la Imagen */}
-            <div class="aspect-square w-full overflow-hidden bg-slate-100 relative">
-              <img 
-                src={`${publicBackendUrl}${photo.url}`} 
-                alt={photo.title}
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                loading="lazy"
-              />
-            </div>
-            
-            {/* Textos de la foto */}
-            <div class="p-4">
-              <h4 class="font-bold text-slate-800 text-base line-clamp-1">{photo.title}</h4>
-              {photo.description && (
-                <p class="text-xs text-slate-500 mt-1 line-clamp-2">{photo.description}</p>
-              )}
-              <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
-                <span>📅 {new Date(photo.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
-              </div>
-            </div>
+    {photoData.photos.length > 0 ? (
+  <div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {photoData.photos.map((photo: any) => (
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all group">
+          <div 
+              data-full-url={`${publicBackendUrl}${photo.url}`}
+              data-title={photo.title}
+              data-description={photo.description || ''}
+              class="shadow-sm hover:shadow-md transition-all group cursor-pointer photo-card aspect-square w-full overflow-hidden bg-slate-100 relative"
+              >
+            <Image
+              src={`${publicBackendUrl}${photo.url}`} 
+              alt={photo.title} 
+              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              priority
+              width={photo.width || 800} 
+              height={photo.height || 800}
+            />
           </div>
-        ))}
+          <div class="p-4">
+            <h4 class="font-bold text-slate-800 text-base line-clamp-1">{photo.title}</h4>
+            {photo.description && <p class="text-xs text-slate-500 mt-1 line-clamp-2">{photo.description}</p>}
+          </div>
+        </div>
+      ))}
+    </div>
+    <div id="photo-modal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex-col items-center justify-center p-4 transition-all animate-fade-in">
+      <button id="modal-close" class="absolute top-4 right-4 text-white/70 hover:text-white text-3xl font-light p-2 transition-colors focus:outline-none" aria-label="Cerrar modal">
+        &times;
+      </button>
+
+      <div class="max-w-4xl max-h-[80vh] flex items-center justify-center">
+        <img id="modal-img" src="" alt="" class="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl" />
+      </div>
+
+      <div class="text-center mt-4 max-w-2xl px-4">
+        <h3 id="modal-title" class="text-white font-bold text-xl tracking-tight"></h3>
+        <p id="modal-desc" class="text-slate-400 text-sm mt-1"></p>
+      </div>
+    </div>
+
+    {photoData.total_pages > 1 && (
+      <div class="flex justify-center items-center gap-4 mt-10 pt-6 border-t border-slate-100">
+        <a 
+          aria-label="previous-page"
+          href={photoData.current_page > 1 ? `?page=${photoData.current_page - 1}` : '#'} 
+          class={`px-4 py-2 text-sm font-medium rounded-xl border transition-colors ${photoData.current_page === 1 ? 'text-slate-300 border-slate-100 pointer-events-none' : 'text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+        >
+          ← Anterior
+        </a>
+        
+        <span class="text-sm font-semibold text-slate-500">
+          Página {photoData.current_page} de {photoData.total_pages}
+        </span>
+
+        <a
+          aria-label="next-page" 
+          href={photoData.current_page < photoData.total_pages ? `?page=${photoData.current_page + 1}` : '#'} 
+          class={`px-4 py-2 text-sm font-medium rounded-xl border transition-colors ${photoData.current_page === photoData.total_pages ? 'text-slate-300 border-slate-100 pointer-events-none' : 'text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+        >
+          Siguiente →
+        </a>
       </div>
     )}
+  </div>
+) : (
+  <p class="text-center text-slate-400 py-12">No hay fotos subidas en esta página.</p>
+)}
 
   </div>
+
+  <script>
+    // 1. Selectores limpios sin tipado de TypeScript
+    const modal = document.getElementById('photo-modal');
+    const modalImg = document.getElementById('modal-img');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDesc = document.getElementById('modal-desc');
+    const modalClose = document.getElementById('modal-close');
+    
+    const photoCards = document.querySelectorAll('.photo-card');
+
+    // 2. Asignar eventos
+    photoCards.forEach(card => {
+      card.addEventListener('click', () => {
+        // Usamos getAttribute para leer de forma segura en JS nativo
+        const fullUrl = card.getAttribute('data-full-url') || '';
+        const title = card.getAttribute('data-title') || '';
+        const description = card.getAttribute('data-description') || '';
+
+        // Modificamos las propiedades de los elementos validando que existan
+        if (modalImg) {
+          // En JS nativo, puedes setear el atributo 'src' directamente sin castear el tipo
+          modalImg.setAttribute('src', fullUrl);
+          modalImg.setAttribute('alt', title);
+        }
+        if (modalTitle) modalTitle.textContent = title;
+        if (modalDesc) modalDesc.textContent = description;
+
+        modal?.classList.remove('hidden');
+        modal?.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+      });
+    });
+
+    function closeModal() {
+      modal?.classList.remove('flex');
+      modal?.classList.add('hidden');
+      document.body.style.overflow = ''; 
+      if (modalImg) modalImg.setAttribute('src', ''); 
+    }
+
+    modalClose?.addEventListener('click', closeModal);
+
+    modal?.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal?.classList.contains('hidden')) {
+        closeModal();
+      }
+    });
+  </script>
   <Footer />
 </BaseLayout>
 
