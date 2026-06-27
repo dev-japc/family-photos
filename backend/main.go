@@ -72,6 +72,20 @@ func main() {
         }
     }
 
+	// --- GRUPO UNIFICADO DE ÁLBUMES 📁 ---
+    albumRoutes := r.Group("/api/albums")
+    albumRoutes.Use(middleware.AuthMiddleware()) // Todos los logueados pueden verlos
+    {
+        albumRoutes.GET("", controllers.GetAlbums) // GET /api/albums (Para Astro)
+        
+        // Subgrupo para que solo el Admin pueda CREAR álbumes
+        adminAlbumRoutes := albumRoutes.Group("")
+        adminAlbumRoutes.Use(middleware.AdminMiddleware())
+        {
+            adminAlbumRoutes.POST("", controllers.CreateAlbum) // POST /api/albums (Para Astro)
+        }
+    }
+
 	// user routes
 	userRoutes := r.Group("/api/user")
 	userRoutes.Use(middleware.AuthMiddleware())
