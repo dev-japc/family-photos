@@ -20,6 +20,16 @@ func UploadPhoto(c *gin.Context) {
 
 	title := c.PostForm("title")
 	description := c.PostForm("description")
+	albumIDStr := c.PostForm("album_id")
+
+	var albumID *uint
+
+	if albumIDStr != "" {
+		var id uint
+		if _, err := fmt.Sscanf(albumIDStr, "%d", &id); err == nil {
+			albumID = &id // Asignamos el puntero si es un número válido
+		}
+	}
 
 	if title == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "title is required"})
@@ -69,6 +79,7 @@ func UploadPhoto(c *gin.Context) {
 	newPhoto := models.Photo{
 		Title:       title,
 		Description: description,
+		AlbumID:     albumID,
 		URL:         "/uploads/" + uniqueFilename,
 		UserID:      userID,
 	}
@@ -89,6 +100,7 @@ func GetPhotos(c *gin.Context) {
     var photos []models.Photo
     
     pageStr := c.DefaultQuery("page", "1")
+	albumQuery := c.Query("album_id")
 
     var page int
 
@@ -105,11 +117,26 @@ func GetPhotos(c *gin.Context) {
     var totalPhotos int64
     config.DB.Model(&models.Photo{}).Count(&totalPhotos)
 
+	
     // 4. look for the photos in DB and sort them by creation
     if err := config.DB.Order("created_at desc").Limit(pageSize).Offset(offset).Find(&photos).Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Error getting the list of photos"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error getting the list of photos"})
         return
     }
+	
+	query := config.DB.Model(&models.Photo{})
+
+	// Si el usuario seleccionó un álbum, filtramos la consulta
+	if albumQuery != "" {
+		query = query.Where("album_id = ?", albumQuery)
+	}
+
+	query.Count(&totalPhotos) // Cuenta basándose en si hay filtro o no
+
+	if err := query.Order("created_at desc").Limit(pageSize).Offset(offset).Find(&photos).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener fotos"})
+		return
+	}
 
     // 5. JSON response with the photos, current page, total photos, and total pages
     c.JSON(http.StatusOK, gin.H{
